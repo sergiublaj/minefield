@@ -1,5 +1,4 @@
 import os
-import math
 import numpy
 import PySimpleGUI
 from tkinter import *
@@ -11,184 +10,200 @@ PICKAXE = 'pickaxe.png'
 MESSAGE = 'message.png'
 BOMB = 'bomb.png'
 
-UTILS = {'cell_count': 0,
-         'cell_size': 0,
-         'grid_size': 400,
-         'canvas': False,
-         'window': False,
-         'player_pos': [0, 0],
-         'cell_map': False,
-         'safe_map': False,
-         'visited_map': False,
-         'messages_coords': False,
-         'bombs_coords': False,
-         }
-
+GRID_SIZE = 400
 APP_FONT = 'Any 16'
 PySimpleGUI.theme('DarkGrey5')
-SCORE = 0
+SCORE_STEP = 10
 
 
-def draw_grid():
-    UTILS['canvas'].TKCanvas.create_rectangle(
-        1, 1, UTILS['grid_size'], UTILS['grid_size'], outline='BLACK', width=1)
+class Minefield:
+    def __init__(self) -> None:
+        self.cell_count = 0
+        self.cell_size = 0
+        self.canvas = None
+        self.window = None
+        self.player_pos = None
+        self.cell_map = None
+        self.safe_map = None
+        self.visited_map = None
+        self.messages_coords = None
+        self.bombs_coords = None
+        self.score = 0
 
-    for idx in range(UTILS['cell_count']):
-        UTILS['canvas'].TKCanvas.create_line(
-            ((UTILS['cell_size'] * idx),
-             0), ((UTILS['cell_size'] * idx), UTILS['grid_size']),
-            fill='BLACK', width=1)
-        UTILS['canvas'].TKCanvas.create_line(
-            (0, (UTILS['cell_size'] * idx)
-             ), (UTILS['grid_size'], (UTILS['cell_size'] * idx)),
-            fill='BLACK', width=1)
+    def initialize(self):
+        self.read_config(MAP_TEST)
 
+        self.initialize_map()
 
-def draw_image(x, y, resource):
-    x *= UTILS['cell_size']
-    y *= UTILS['cell_size']
+    def read_config(self, map_path):
+        self.initialize_array()
 
-    image = Image.open(os.path.join(RESOURCES_FOLDER, resource))
-    image = image.resize(
-        (UTILS['cell_size'], UTILS['cell_size']), Image.ANTIALIAS)
-    photoImage = ImageTk.PhotoImage(image)
-    UTILS['canvas'].TKCanvas.create_image(
-        x, y, image=photoImage, anchor='nw')
+        row = 0
+        with open(map_path, "r") as map_file:
+            for line in map_file.readlines():
+                for column in range(len(line)):
+                    if line[column] == 'M':
+                        self.messages_coords.append((row, column))
+                    elif line[column] == 'B':
+                        self.bombs_coords.append((row, column))
 
+                row += 1
 
-def draw_cell(x, y, color='GREY'):
-    x *= UTILS['cell_size']
-    y *= UTILS['cell_size']
+        self.cell_count = row
+        self.cell_size = GRID_SIZE // self.cell_count
 
-    UTILS['canvas'].TKCanvas.create_rectangle(
-        x, y, x + UTILS['cell_size'], y + UTILS['cell_size'],
-        outline='BLACK', fill=color, width=1)
+    def initialize_array(self):
+        self.messages_coords = []
+        self.bombs_coords = []
 
+    def initialize_map(self):
+        self.initialize_matrix()
 
-def initialize_map():
-    UTILS['cell_map'] = numpy.zeros(
-        (UTILS['cell_count'], UTILS['cell_count']), dtype=int)
-    UTILS['visited_map'] = numpy.zeros(
-        (UTILS['cell_count'], UTILS['cell_count']), dtype=int)
+        layout = [[PySimpleGUI.Canvas(size=(GRID_SIZE, GRID_SIZE),
+                                      background_color='WHITE',
+                                      key='canvas')],
+                  [PySimpleGUI.Exit(font=APP_FONT),
+                   PySimpleGUI.Text('', key='-SCORE-',
+                                    font=APP_FONT, size=(15, 1)),
+                   PySimpleGUI.Button('Restart', font=APP_FONT)]]
 
-    layout = [[PySimpleGUI.Canvas(size=(UTILS['grid_size'], UTILS['grid_size']),
-                                  background_color='WHITE',
-                                  key='canvas')],
-              [PySimpleGUI.Exit(font=APP_FONT),
-               PySimpleGUI.Text('', key='-SCORE-',
-                                font=APP_FONT, size=(15, 1)),
-               PySimpleGUI.Button('Restart', font=APP_FONT)]]
-
-    UTILS['window'] = PySimpleGUI.Window('Minefield v1.0', layout, resizable=True, finalize=True,
+        self.window = PySimpleGUI.Window('Minefield v1.0', layout, resizable=True, finalize=True,
                                          return_keyboard_events=True)
-    UTILS['canvas'] = UTILS['window']['canvas']
+        self.canvas = self.window['canvas']
+        self.player_pos = [0, 0]
+        self.score = 10
 
-    image = Image.open(os.path.join(RESOURCES_FOLDER, PICKAXE))
-    image = image.resize(
-        (UTILS['cell_size'], UTILS['cell_size']), Image.ANTIALIAS)
-    photoImage = ImageTk.PhotoImage(image)
-    UTILS['canvas'].TKCanvas.create_image(
-        UTILS['player_pos'][0], UTILS['player_pos'][1], image=photoImage, anchor='nw')
+        image = Image.open(os.path.join(RESOURCES_FOLDER, PICKAXE))
+        image = image.resize(
+            (self.cell_size, self.cell_size), Image.ANTIALIAS)
+        photoImage = ImageTk.PhotoImage(image)
+        self.canvas.TKCanvas.create_image(
+            self.player_pos[0], self.player_pos[1], image=photoImage, anchor='nw')
 
-    draw_grid()
-    draw_map()
+        self.draw_grid()
+        self.draw_map()
+
+    def initialize_matrix(self):
+        self.cell_map = numpy.zeros(
+            (self.cell_count, self.cell_count), dtype=int)
+        self.visited_map = numpy.zeros(
+            (self.cell_count, self.cell_count), dtype=int)
+        self.safe_map = numpy.zeros(
+            (self.cell_count, self.cell_count), dtype=int)
+
+    def draw_grid(self):
+        self.canvas.TKCanvas.create_rectangle(
+            1, 1, GRID_SIZE, GRID_SIZE, outline='BLACK', width=1)
+
+        for idx in range(self.cell_count):
+            self.canvas.TKCanvas.create_line(
+                ((self.cell_size * idx),
+                 0), ((self.cell_size * idx), GRID_SIZE),
+                fill='BLACK', width=1)
+            self.canvas.TKCanvas.create_line(
+                (0, (self.cell_size * idx)
+                 ), (GRID_SIZE, (self.cell_size * idx)),
+                fill='BLACK', width=1)
+
+    def draw_map(self):
+        for i in range(self.cell_count):
+            for j in range(self.cell_count):
+                if self.visited_map[i][j] == 1:
+                    self.draw_cell(i, j)
+                if (i, j) in self.messages_coords:
+                    self.draw_cell(i, j, 'GREEN')
+                    # self.draw_image(i, j, MESSAGE)
+                if (i, j) in self.bombs_coords:
+                    self.draw_cell(i, j, 'RED')
+                    # self.draw_image(i, j, BOMB)
+
+        self.draw_image(self.player_pos[0],
+                        self.player_pos[1], PICKAXE)
+
+    def draw_image(self, x, y, resource):
+        x *= self.cell_size
+        y *= self.cell_size
+
+        image = Image.open(os.path.join(RESOURCES_FOLDER, resource))
+        image = image.resize(
+            (self.cell_size, self.cell_size), Image.ANTIALIAS)
+        photoImage = ImageTk.PhotoImage(image)
+        self.canvas.TKCanvas.create_image(
+            x, y, image=photoImage, anchor='nw')
+
+    def draw_cell(self, x, y, color='GREY'):
+        x *= self.cell_size
+        y *= self.cell_size
+
+        self.canvas.TKCanvas.create_rectangle(
+            x, y, x + self.cell_size, y + self.cell_size,
+            outline='BLACK', fill=color, width=1)
+
+    def run(self):
+        while True:
+            self.canvas.TKCanvas.delete("all")
+
+            self.window['-SCORE-'].update(f'Score: {self.score}')
+
+            self.draw_grid()
+
+            xPos = self.player_pos[0] // self.cell_size
+            yPos = self.player_pos[1] // self.cell_size
+
+            self.visited_map[xPos][yPos] = 1
+
+            self.draw_map()
+
+            if self.process_events(xPos, yPos) == -1:
+                break
+
+        self.window.close()
+
+    def process_events(self, oldX, oldY):
+        event, _ = self.window.read()
+        if event in (None, 'Exit'):
+            return -1
+
+        event_type = self.get_event(event)
+        if event_type == 'Up' and int(self.player_pos[1] - self.cell_size) >= 0:
+            self.player_pos[1] = self.player_pos[1] - self.cell_size
+        elif event_type == 'Down' and int(self.player_pos[1] + self.cell_size) < GRID_SIZE-1:
+            self.player_pos[1] = self.player_pos[1] + self.cell_size
+        elif event_type == 'Left' and int(self.player_pos[0] - self.cell_size) >= 0:
+            self.player_pos[0] = self.player_pos[0] - self.cell_size
+        elif event_type == 'Right' and int(self.player_pos[0] + self.cell_size) < GRID_SIZE-1:
+            self.player_pos[0] = self.player_pos[0] + self.cell_size
+        elif event_type == 'Restart':
+            self.initialize_map()
+
+        newX = self.player_pos[0] // self.cell_size
+        newY = self.player_pos[1] // self.cell_size
+
+        self.check_move(oldX, oldY, newX, newY)
+
+    def get_event(self, event):
+        move = event
+        if event.startswith('Up'):
+            move = 'Up'
+        elif event.startswith('Down'):
+            move = 'Down'
+        elif event.startswith('Left'):
+            move = 'Left'
+        elif event.startswith('Right'):
+            move = 'Right'
+
+        return move
+
+    def check_move(self, oldX, oldY, newX, newY):
+        if (oldX != newX or oldY != newY) and self.safe_map[newX][newY] == 0:
+            self.score -= SCORE_STEP
 
 
-def draw_map():
-    for i in range(UTILS['cell_count']):
-        for j in range(UTILS['cell_count']):
-            if UTILS['visited_map'][i][j] == 1:
-                draw_cell(i, j)
-            if (i, j) in UTILS['messages_coords']:
-                draw_cell(i, j, 'GREEN')
-                # draw_image(i, j, MESSAGE)
-            if (i, j) in UTILS['bombs_coords']:
-                draw_cell(i, j, 'RED')
-                # draw_image(i, j, BOMB)
-
-
-def get_event(event):
-    move = event
-    if event.startswith('Up'):
-        move = 'Up'
-    elif event.startswith('Down'):
-        move = 'Down'
-    elif event.startswith('Left'):
-        move = 'Left'
-    elif event.startswith('Right'):
-        move = 'Right'
-
-    return move
-
-
-def process_events():
-    event, _ = UTILS['window'].read()
-    if event in (None, 'Exit'):
-        return -1
-
-    event_type = get_event(event)
-    if event_type == 'Up' and int(UTILS['player_pos'][1] - UTILS['cell_size']) >= 0:
-        UTILS['player_pos'][1] = UTILS['player_pos'][1] - UTILS['cell_size']
-    elif get_event(event) == 'Down' and int(UTILS['player_pos'][1] + UTILS['cell_size']) < UTILS['grid_size']-1:
-        UTILS['player_pos'][1] = UTILS['player_pos'][1] + UTILS['cell_size']
-    elif event_type == 'Left' and int(UTILS['player_pos'][0] - UTILS['cell_size']) >= 0:
-        UTILS['player_pos'][0] = UTILS['player_pos'][0] - UTILS['cell_size']
-    elif event_type == 'Right' and int(UTILS['player_pos'][0] + UTILS['cell_size']) < UTILS['grid_size']-1:
-        UTILS['player_pos'][0] = UTILS['player_pos'][0] + UTILS['cell_size']
-    elif event_type == 'Restart':
-        UTILS['cell_map'] = numpy.zeros(
-            (UTILS['cell_count'], UTILS['cell_count']), dtype=int)
-        UTILS['visited_map'] = numpy.zeros(
-            (UTILS['cell_count'], UTILS['cell_count']), dtype=int)
-        UTILS['messages_coords'] = []
-        UTILS['bombs_coords'] = []
-
-
-def run():
-    while True:
-        UTILS['canvas'].TKCanvas.delete("all")
-
-        UTILS['window']['-SCORE-'].update(f'Score: {SCORE}')
-
-        draw_grid()
-
-        xPos = UTILS['player_pos'][0] // UTILS['cell_size']
-        yPos = UTILS['player_pos'][1] // UTILS['cell_size']
-
-        UTILS['visited_map'][xPos][yPos] = 1
-
-        draw_map()
-
-        draw_image(UTILS['player_pos'][0], UTILS['player_pos'][1], PICKAXE)
-
-        if process_events() == -1:
-            break
-
-    UTILS['window'].close()
-
-
-def read_config(map_path):
-    UTILS['messages_coords'] = []
-    UTILS['bombs_coords'] = []
-
-    row = 0
-    with open(map_path, "r") as map_file:
-        for line in map_file.readlines():
-            for column in range(len(line)):
-                if line[column] == 'M':
-                    UTILS['messages_coords'].append((row, column))
-                elif line[column] == 'B':
-                    UTILS['bombs_coords'].append((row, column))
-
-            row += 1
-
-    UTILS['cell_count'] = row
-    UTILS['cell_size'] = UTILS['grid_size'] // UTILS['cell_count']
+def main():
+    minefield = Minefield()
+    minefield.initialize()
+    minefield.run()
 
 
 if __name__ == "__main__":
-    read_config(MAP_TEST)
-
-    initialize_map()
-
-    run()
+    main()
