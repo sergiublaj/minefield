@@ -19,6 +19,12 @@ taken from: https://github.com/KenoLeon/Medium-Mazes
 
 # build your own map
 
+note: axis are open-gl like
+0 1 2 3 -> x axis
+1
+2
+3 -> y axis
+
 the content of map file should be
 % - axis indices
 M - messages
