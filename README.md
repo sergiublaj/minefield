@@ -17,10 +17,12 @@ taken from: https://github.com/KenoLeon/Medium-Mazes
 7. pip install pillow
 8. python minefield.py
 
-# problems
+# build your own map
 
-1. reading map from file
-2. images are not displayed correctly
-3. what if pickaxe reaches an image?
-4. after map, messages should be:
-   i j message
+the content of map file should be
+% - axis indices
+M - messages
+B - bomb
+. - empty cell
+= - separates map from messages
+i j message_text - message object

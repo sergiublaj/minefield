@@ -1,4 +1,8 @@
-M.M.
-..B.
-..B.
-.B..
+%%%%%
+%M.M.
+%....
+%.B..
+%....
+=====
+1 1 this is a message a message is this
+3 1 a message is this indeed a message

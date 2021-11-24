@@ -8,14 +8,16 @@ RESOURCES_FOLDER = './resources'
 PHOTOS_FILES = ('pickaxe.png', 'message.png', 'bomb.png')
 MAP_TEST = 'map_test.txt'
 
-GRID_SIZE = 400
-APP_FONT = 'Any 16'
+GRID_SIZE = 500
+APP_FONT = 'Helvetica'
+TEXT_SIZE = 16
 PySimpleGUI.theme('DarkGrey5')
 SCORE_STEP = 10
 
 
 class Minefield:
     def __init__(self) -> None:
+        self.is_running = True
         self.cell_count = 0
         self.cell_size = 0
         self.canvas = None
@@ -24,8 +26,8 @@ class Minefield:
         self.cell_map = None
         self.safe_map = None
         self.visited_map = None
-        self.messages_coords = None
-        self.bombs_coords = None
+        self.messages = None
+        self.bombs = None
         self.pictures = None
         self.score = 0
 
@@ -36,33 +38,42 @@ class Minefield:
 
         self.load_pictures()
 
-        self.canvas = self.window['canvas']
-        self.player_pos = [0, 0]
-        self.score = 10
-
-        self.draw_grid()
-        self.draw_map(0, 0)
-
     def read_config(self, map_path):
         self.initialize_array()
 
         row = 0
-        with open(map_path, "r") as map_file:
+        reading_map = True
+        with open(map_path, 'r') as map_file:
             for line in map_file.readlines():
-                for column in range(len(line)):
-                    if line[column] == 'M':
-                        self.messages_coords.append((row, column))
-                    elif line[column] == 'B':
-                        self.bombs_coords.append((row, column))
+                if line.startswith('='):
+                    reading_map = False
+                    continue
 
-                row += 1
+                if reading_map:
+                    for column in range(len(line)):
+                        if line[column] == 'M':
+                            self.messages[(column, row)] = ''
+                        elif line[column] == 'B':
+                            self.bombs.append((column, row))
+
+                    row += 1
+
+                else:
+                    if line.endswith('\n'):
+                        line = line[:-1]
+
+                    words = line.split(' ')
+                    self.messages[(int(words[0]), int(
+                        words[1]))] = ' '.join(words[2:])
+
+        print(self.messages)
 
         self.cell_count = row
         self.cell_size = GRID_SIZE // self.cell_count
 
     def initialize_array(self):
-        self.messages_coords = []
-        self.bombs_coords = []
+        self.messages = {}
+        self.bombs = []
 
     def load_pictures(self):
         self.pictures = []
@@ -77,16 +88,25 @@ class Minefield:
     def initialize_window(self):
         self.initialize_matrix()
 
+        sizeX = GRID_SIZE // self.cell_count // 6
+        sizeY = 1
+
         layout = [[PySimpleGUI.Canvas(size=(GRID_SIZE, GRID_SIZE),
                                       background_color='WHITE',
-                                      key='canvas')],
-                  [PySimpleGUI.Exit(font=APP_FONT),
-                   PySimpleGUI.Text('', key='-SCORE-',
-                                    font=APP_FONT, size=(15, 1)),
-                   PySimpleGUI.Button('Restart', font=APP_FONT)]]
+                                      key='-CANVAS-')],
+                  [[PySimpleGUI.Exit(font=' '.join([APP_FONT, str(TEXT_SIZE)]), size=(sizeX, sizeY)),
+                   PySimpleGUI.Button('Restart', font=' '.join([APP_FONT, str(TEXT_SIZE)]), size=(sizeX, sizeY))],
+                   [PySimpleGUI.Text('', key='-SCORE-',
+                                     font=' '.join([APP_FONT, str(TEXT_SIZE)]), size=(sizeX, sizeY))],
+                   [PySimpleGUI.Text(f'{self.messages[(1, 1)]}', key='-MESSAGE-',
+                                     font=' '.join([APP_FONT, str(TEXT_SIZE)]), size=(sizeX * 2, sizeY))]]]
 
-        self.window = PySimpleGUI.Window('Minefield v1.0', layout, resizable=True, finalize=True,
+        self.window = PySimpleGUI.Window('Minefield v1.1', layout, resizable=True, finalize=True,
                                          return_keyboard_events=True)
+
+        self.canvas = self.window['-CANVAS-']
+
+        self.player_pos = [self.cell_size, self.cell_size]
 
     def initialize_matrix(self):
         self.cell_map = numpy.zeros(
@@ -111,16 +131,29 @@ class Minefield:
                 fill='BLACK', width=1)
 
     def draw_map(self, xPos, yPos):
-        for i in range(self.cell_count):
-            for j in range(self.cell_count):
+        number_coordinate = self.cell_size // 2 + 2
+        for idx in range(self.cell_count):
+            self.draw_cell(idx, 0, 'GRAY')
+            self.canvas.TKCanvas.create_text(idx * self.cell_size + number_coordinate, number_coordinate,
+                                             fill='WHITE', font=' '.join([APP_FONT, str(self.cell_size)]),
+                                             text=f'{idx}')
+
+            self.draw_cell(0, idx, 'GRAY')
+            self.canvas.TKCanvas.create_text(number_coordinate, idx * self.cell_size + number_coordinate,
+                                             fill='WHITE', font=' '.join([APP_FONT, str(self.cell_size)]),
+                                             text=f'{idx}')
+
+        for i in range(1, self.cell_count):
+            for j in range(1, self.cell_count):
                 if self.visited_map[i][j] == 1:
                     self.draw_cell(i, j)
-                if (i, j) in self.messages_coords:
-                    self.draw_cell(i, j, 'GREEN')
-                    self.draw_image(i, j, self.pictures[1])
-                if (i, j) in self.bombs_coords:
-                    self.draw_cell(i, j, 'RED')
-                    self.draw_image(i, j, self.pictures[2])
+
+                    if (i, j) in self.messages.keys():
+                        self.draw_cell(i, j, 'GREEN')
+                        self.draw_image(i, j, self.pictures[1])
+                    if (i, j) in self.bombs:
+                        self.draw_cell(i, j, 'RED')
+                        self.draw_image(i, j, self.pictures[2])
 
         self.draw_image(xPos,
                         yPos, self.pictures[0])
@@ -132,7 +165,7 @@ class Minefield:
         self.canvas.TKCanvas.create_image(
             x, y, image=resource, anchor='nw')
 
-    def draw_cell(self, x, y, color='GREY'):
+    def draw_cell(self, x, y, color='YELLOW'):
         x *= self.cell_size
         y *= self.cell_size
 
@@ -142,7 +175,7 @@ class Minefield:
 
     def run(self):
         while True:
-            self.canvas.TKCanvas.delete("all")
+            self.canvas.TKCanvas.delete('all')
 
             self.window['-SCORE-'].update(f'Score: {self.score}')
 
@@ -166,16 +199,22 @@ class Minefield:
             return -1
 
         event_type = self.get_event(event)
-        if event_type == 'Up' and int(self.player_pos[1] - self.cell_size) >= 0:
+        if event_type == 'Restart':
+            self.initialize_window()
+            self.score = SCORE_STEP
+            self.is_running = True
+
+        if not self.is_running:
+            return
+
+        if event_type == 'Up' and int(self.player_pos[1] - self.cell_size) > 0:
             self.player_pos[1] = self.player_pos[1] - self.cell_size
         elif event_type == 'Down' and int(self.player_pos[1] + self.cell_size) < GRID_SIZE-1:
             self.player_pos[1] = self.player_pos[1] + self.cell_size
-        elif event_type == 'Left' and int(self.player_pos[0] - self.cell_size) >= 0:
+        elif event_type == 'Left' and int(self.player_pos[0] - self.cell_size) > 0:
             self.player_pos[0] = self.player_pos[0] - self.cell_size
         elif event_type == 'Right' and int(self.player_pos[0] + self.cell_size) < GRID_SIZE-1:
             self.player_pos[0] = self.player_pos[0] + self.cell_size
-        elif event_type == 'Restart':
-            self.initialize_map()
 
         newX = self.player_pos[0] // self.cell_size
         newY = self.player_pos[1] // self.cell_size
@@ -196,8 +235,31 @@ class Minefield:
         return move
 
     def check_move(self, oldX, oldY, newX, newY):
-        if (oldX != newX or oldY != newY) and self.safe_map[newX][newY] == 0:
-            self.score -= SCORE_STEP
+        # if unvisited future cell is safe, add score step, else subtract it
+        if (oldX != newX or oldY != newY) and not self.visited_map[newX][newY]:
+            self.score += (-1 ** (not self.safe_map[newX][newY])) * SCORE_STEP
+
+        if (newX, newY) in self.messages.keys():
+            self.window['-MESSAGE-'].update(
+                f'{self.messages[(newX, newY)]}')
+        else:
+            self.window['-MESSAGE-'].update('')
+
+        if (newX, newY) in self.bombs:
+            self.window['-MESSAGE-'].update(f'YOU LOST!')
+            self.is_running = False
+
+        self.safe_map[newX][newY] = 1
+
+        visited_cells = 0
+        for i in range(1, self.cell_count):
+            for j in range(1, self.cell_count):
+                visited_cells += self.visited_map[i][j] == 1
+
+        # maximum visited cells can be total_cells squared minus cells containing axis indices minus number of cells containing bombs minus the current cell
+        if visited_cells == self.cell_count ** 2 - (2 * self.cell_count - 1) - len(self.bombs) - 1:
+            self.window['-MESSAGE-'].update(f'YOU WON!')
+            self.is_running = False
 
 
 def main():
@@ -206,5 +268,5 @@ def main():
     minefield.run()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
