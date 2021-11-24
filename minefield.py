@@ -5,10 +5,8 @@ from tkinter import *
 from PIL import ImageTk, Image
 
 RESOURCES_FOLDER = './resources'
+PHOTOS_FILES = ('pickaxe.png', 'message.png', 'bomb.png')
 MAP_TEST = 'map_test.txt'
-PICKAXE = 'pickaxe.png'
-MESSAGE = 'message.png'
-BOMB = 'bomb.png'
 
 GRID_SIZE = 400
 APP_FONT = 'Any 16'
@@ -28,12 +26,22 @@ class Minefield:
         self.visited_map = None
         self.messages_coords = None
         self.bombs_coords = None
+        self.pictures = None
         self.score = 0
 
     def initialize(self):
         self.read_config(MAP_TEST)
 
-        self.initialize_map()
+        self.initialize_window()
+
+        self.load_pictures()
+
+        self.canvas = self.window['canvas']
+        self.player_pos = [0, 0]
+        self.score = 10
+
+        self.draw_grid()
+        self.draw_map(0, 0)
 
     def read_config(self, map_path):
         self.initialize_array()
@@ -56,7 +64,17 @@ class Minefield:
         self.messages_coords = []
         self.bombs_coords = []
 
-    def initialize_map(self):
+    def load_pictures(self):
+        self.pictures = []
+
+        for resource in PHOTOS_FILES:
+            image = Image.open(os.path.join(RESOURCES_FOLDER, resource))
+            image = image.resize(
+                (self.cell_size, self.cell_size), Image.ANTIALIAS)
+            photoImage = ImageTk.PhotoImage(image)
+            self.pictures.append(photoImage)
+
+    def initialize_window(self):
         self.initialize_matrix()
 
         layout = [[PySimpleGUI.Canvas(size=(GRID_SIZE, GRID_SIZE),
@@ -69,19 +87,6 @@ class Minefield:
 
         self.window = PySimpleGUI.Window('Minefield v1.0', layout, resizable=True, finalize=True,
                                          return_keyboard_events=True)
-        self.canvas = self.window['canvas']
-        self.player_pos = [0, 0]
-        self.score = 10
-
-        image = Image.open(os.path.join(RESOURCES_FOLDER, PICKAXE))
-        image = image.resize(
-            (self.cell_size, self.cell_size), Image.ANTIALIAS)
-        photoImage = ImageTk.PhotoImage(image)
-        self.canvas.TKCanvas.create_image(
-            self.player_pos[0], self.player_pos[1], image=photoImage, anchor='nw')
-
-        self.draw_grid()
-        self.draw_map()
 
     def initialize_matrix(self):
         self.cell_map = numpy.zeros(
@@ -105,31 +110,27 @@ class Minefield:
                  ), (GRID_SIZE, (self.cell_size * idx)),
                 fill='BLACK', width=1)
 
-    def draw_map(self):
+    def draw_map(self, xPos, yPos):
         for i in range(self.cell_count):
             for j in range(self.cell_count):
                 if self.visited_map[i][j] == 1:
                     self.draw_cell(i, j)
                 if (i, j) in self.messages_coords:
                     self.draw_cell(i, j, 'GREEN')
-                    # self.draw_image(i, j, MESSAGE)
+                    self.draw_image(i, j, self.pictures[1])
                 if (i, j) in self.bombs_coords:
                     self.draw_cell(i, j, 'RED')
-                    # self.draw_image(i, j, BOMB)
+                    self.draw_image(i, j, self.pictures[2])
 
-        self.draw_image(self.player_pos[0],
-                        self.player_pos[1], PICKAXE)
+        self.draw_image(xPos,
+                        yPos, self.pictures[0])
 
     def draw_image(self, x, y, resource):
         x *= self.cell_size
         y *= self.cell_size
 
-        image = Image.open(os.path.join(RESOURCES_FOLDER, resource))
-        image = image.resize(
-            (self.cell_size, self.cell_size), Image.ANTIALIAS)
-        photoImage = ImageTk.PhotoImage(image)
         self.canvas.TKCanvas.create_image(
-            x, y, image=photoImage, anchor='nw')
+            x, y, image=resource, anchor='nw')
 
     def draw_cell(self, x, y, color='GREY'):
         x *= self.cell_size
@@ -152,7 +153,7 @@ class Minefield:
 
             self.visited_map[xPos][yPos] = 1
 
-            self.draw_map()
+            self.draw_map(xPos, yPos)
 
             if self.process_events(xPos, yPos) == -1:
                 break
