@@ -26,6 +26,7 @@ class Minefield:
         self.cell_map = None
         self.safe_map = None
         self.visited_map = None
+        self.walls = None
         self.messages = None
         self.bombs = None
         self.pictures = None
@@ -55,6 +56,8 @@ class Minefield:
                             self.messages[(column, row)] = ''
                         elif line[column] == 'B':
                             self.bombs.append((column, row))
+                        elif line[column] == '%':
+                            self.walls.append((column, row))
 
                     row += 1
 
@@ -66,14 +69,13 @@ class Minefield:
                     self.messages[(int(words[0]), int(
                         words[1]))] = ' '.join(words[2:])
 
-        print(self.messages)
-
         self.cell_count = row
         self.cell_size = GRID_SIZE // self.cell_count
 
     def initialize_array(self):
         self.messages = {}
         self.bombs = []
+        self.walls = []
 
     def load_pictures(self):
         self.pictures = []
@@ -123,15 +125,16 @@ class Minefield:
         for idx in range(self.cell_count):
             self.canvas.TKCanvas.create_line(
                 ((self.cell_size * idx),
-                 0), ((self.cell_size * idx), GRID_SIZE),
+                 self.cell_size), ((self.cell_size * idx), GRID_SIZE),
                 fill='BLACK', width=1)
             self.canvas.TKCanvas.create_line(
-                (0, (self.cell_size * idx)
+                (self.cell_size, (self.cell_size * idx)
                  ), (GRID_SIZE, (self.cell_size * idx)),
                 fill='BLACK', width=1)
 
     def draw_map(self, xPos, yPos):
         number_coordinate = self.cell_size // 2 + 2
+
         for idx in range(self.cell_count):
             self.draw_cell(idx, 0, 'GRAY')
             self.canvas.TKCanvas.create_text(idx * self.cell_size + number_coordinate, number_coordinate,
@@ -143,17 +146,20 @@ class Minefield:
                                              fill='WHITE', font=' '.join([APP_FONT, str(self.cell_size)]),
                                              text=f'{idx}')
 
-        for i in range(1, self.cell_count):
-            for j in range(1, self.cell_count):
-                if self.visited_map[i][j] == 1:
-                    self.draw_cell(i, j)
+        for row in range(1, self.cell_count):
+            for col in range(1, self.cell_count):
+                if (row, col) in self.walls:
+                    self.draw_cell(row, col, 'GRAY')
 
-                    if (i, j) in self.messages.keys():
-                        self.draw_cell(i, j, 'GREEN')
-                        self.draw_image(i, j, self.pictures[1])
-                    if (i, j) in self.bombs:
-                        self.draw_cell(i, j, 'RED')
-                        self.draw_image(i, j, self.pictures[2])
+                if self.visited_map[row][col] == 1:
+                    self.draw_cell(row, col)
+
+                    if (row, col) in self.messages.keys():
+                        self.draw_cell(row, col, 'GREEN')
+                        self.draw_image(row, col, self.pictures[1])
+                    if (row, col) in self.bombs:
+                        self.draw_cell(row, col, 'RED')
+                        self.draw_image(row, col, self.pictures[2])
 
         self.draw_image(xPos,
                         yPos, self.pictures[0])
@@ -207,13 +213,17 @@ class Minefield:
         if not self.is_running:
             return
 
-        if event_type == 'Up' and int(self.player_pos[1] - self.cell_size) > 0:
+        if event_type == 'Up' and int(self.player_pos[1] - self.cell_size) >= 0 and \
+                (self.player_pos[0] // self.cell_size, (self.player_pos[1] - self.cell_size) // self.cell_size) not in self.walls:
             self.player_pos[1] = self.player_pos[1] - self.cell_size
-        elif event_type == 'Down' and int(self.player_pos[1] + self.cell_size) < GRID_SIZE-1:
+        elif event_type == 'Down' and int(self.player_pos[1] + self.cell_size) < GRID_SIZE-1 and \
+                (self.player_pos[0] // self.cell_size, (self.player_pos[1] + self.cell_size) // self.cell_size) not in self.walls:
             self.player_pos[1] = self.player_pos[1] + self.cell_size
-        elif event_type == 'Left' and int(self.player_pos[0] - self.cell_size) > 0:
+        elif event_type == 'Left' and int(self.player_pos[0] - self.cell_size) >= 0 and \
+                ((self.player_pos[0] - self.cell_size) // self.cell_size, self.player_pos[1] // self.cell_size) not in self.walls:
             self.player_pos[0] = self.player_pos[0] - self.cell_size
-        elif event_type == 'Right' and int(self.player_pos[0] + self.cell_size) < GRID_SIZE-1:
+        elif event_type == 'Right' and int(self.player_pos[0] + self.cell_size) < GRID_SIZE-1 and \
+                ((self.player_pos[0] + self.cell_size) // self.cell_size, self.player_pos[1] // self.cell_size) not in self.walls:
             self.player_pos[0] = self.player_pos[0] + self.cell_size
 
         newX = self.player_pos[0] // self.cell_size
@@ -235,8 +245,10 @@ class Minefield:
         return move
 
     def check_move(self, oldX, oldY, newX, newY):
-        # if unvisited future cell is safe, add score step, else subtract it
-        if (oldX != newX or oldY != newY) and not self.visited_map[newX][newY]:
+        if oldX == newX and oldY == newY:
+            return
+
+        if not self.visited_map[newX][newY]:
             self.score += (-1 ** (not self.safe_map[newX][newY])) * SCORE_STEP
 
         if (newX, newY) in self.messages.keys():
@@ -252,12 +264,11 @@ class Minefield:
         self.safe_map[newX][newY] = 1
 
         visited_cells = 0
-        for i in range(1, self.cell_count):
-            for j in range(1, self.cell_count):
-                visited_cells += self.visited_map[i][j] == 1
+        for row in range(self.cell_count):
+            for col in range(self.cell_count):
+                visited_cells += self.visited_map[row][col] == 1
 
-        # maximum visited cells can be total_cells squared minus cells containing axis indices minus number of cells containing bombs minus the current cell
-        if visited_cells == self.cell_count ** 2 - (2 * self.cell_count - 1) - len(self.bombs) - 1:
+        if visited_cells == self.cell_count ** 2 - len(self.bombs) - len(self.walls) - 1:
             self.window['-MESSAGE-'].update(f'YOU WON!')
             self.is_running = False
 

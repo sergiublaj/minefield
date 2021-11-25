@@ -26,7 +26,7 @@ note: axis are open-gl like <br />
 3 -> y axis <br />
 
 the content of map file should be <br />
-% - axis indices <br />
+% - wall or axis indices<br />
 M - messages <br />
 B - bomb <br />
 . - empty cell <br />
