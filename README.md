@@ -1,6 +1,7 @@
 # minefield
 
 Minfield in Python3
+v1.2
 
 # GUI
 
@@ -16,6 +17,8 @@ taken from: https://github.com/KenoLeon/Medium-Mazes
 6. pip install numpy
 7. pip install pillow
 8. python minefield.py
+
+note: you must have prover9 installed on your system
 
 # build your own map
 

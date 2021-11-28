@@ -1,3 +1,9 @@
+'''
+Name: minefield.py
+Authors: Blaj Sergiu, Borbei Raul
+Description: minefield game
+'''
+
 import os
 import numpy
 import PySimpleGUI
@@ -6,6 +12,7 @@ from PIL import ImageTk, Image
 
 RESOURCES_FOLDER = './resources'
 PHOTOS_FILES = ('pickaxe.png', 'message.png', 'bomb.png')
+
 MAP_TEST = 'map_test.txt'
 
 GRID_SIZE = 500
@@ -14,28 +21,31 @@ TEXT_SIZE = 16
 PySimpleGUI.theme('DarkGrey5')
 SCORE_STEP = 10
 
+MINEFOL_RULES = [
+    'formulas(minefol).', 'all x all y (safe(x,y) <-> -(mine(x,y))).', 'safe(1,1).', 'end_of_list.']
+MINEFOL_MESSAGES = ['formulas(game).', 'end_of_list.']
+MINEFOL_GOALS = ['formulas(goals).', '', 'end_of_list.']
+
+PROVER_INPUT = 'prover9.in'
+PROVER_OUTPUT = 'prover9.out'
+
+READ_MODE = 'r'
+WRITE_MODE = 'w'
+
+PROVER_COMMAND = f'prover9 -f {PROVER_INPUT} > {PROVER_OUTPUT}'
+THEOREM_PROVED = 'THEOREM PROVED'
+
 
 class Minefield:
-    def __init__(self) -> None:
-        self.is_running = True
-        self.cell_count = 0
-        self.cell_size = 0
-        self.canvas = None
-        self.window = None
-        self.player_pos = None
-        self.cell_map = None
-        self.safe_map = None
-        self.visited_map = None
-        self.walls = None
-        self.messages = None
-        self.bombs = None
-        self.pictures = None
-        self.score = 0
+    def __init__(self):
+        pass
 
     def initialize(self):
         self.read_config(MAP_TEST)
 
         self.initialize_window()
+
+        self.initialize_game()
 
         self.load_pictures()
 
@@ -103,12 +113,12 @@ class Minefield:
                    [PySimpleGUI.Text(f'{self.messages[(1, 1)]}', key='-MESSAGE-',
                                      font=' '.join([APP_FONT, str(TEXT_SIZE)]), size=(sizeX * 2, sizeY))]]]
 
-        self.window = PySimpleGUI.Window('Minefield v1.1', layout, resizable=True, finalize=True,
+        self.window = PySimpleGUI.Window('Minefield v1.2', layout, resizable=True, finalize=True,
                                          return_keyboard_events=True)
 
-        self.canvas = self.window['-CANVAS-']
+        self.window.Resizable(0, 0)
 
-        self.player_pos = [self.cell_size, self.cell_size]
+        self.canvas = self.window['-CANVAS-']
 
     def initialize_matrix(self):
         self.cell_map = numpy.zeros(
@@ -117,6 +127,17 @@ class Minefield:
             (self.cell_count, self.cell_count), dtype=int)
         self.safe_map = numpy.zeros(
             (self.cell_count, self.cell_count), dtype=int)
+
+    def initialize_game(self):
+        self.player_pos = [self.cell_size, self.cell_size]
+
+        self.score = 0
+
+        self.visited_cells = 0
+
+        self.is_running = True
+
+        MINEFOL_MESSAGES.insert(1, self.messages[(1, 1)])
 
     def draw_grid(self):
         self.canvas.TKCanvas.create_rectangle(
@@ -207,8 +228,8 @@ class Minefield:
         event_type = self.get_event(event)
         if event_type == 'Restart':
             self.initialize_window()
-            self.score = SCORE_STEP
-            self.is_running = True
+            self.initialize_game()
+            return
 
         if not self.is_running:
             return
@@ -248,29 +269,45 @@ class Minefield:
         if oldX == newX and oldY == newY:
             return
 
-        if not self.visited_map[newX][newY]:
-            self.score += (-1 ** (not self.safe_map[newX][newY])) * SCORE_STEP
-
-        if (newX, newY) in self.messages.keys():
-            self.window['-MESSAGE-'].update(
-                f'{self.messages[(newX, newY)]}')
-        else:
-            self.window['-MESSAGE-'].update('')
-
         if (newX, newY) in self.bombs:
             self.window['-MESSAGE-'].update(f'YOU LOST!')
             self.is_running = False
 
-        self.safe_map[newX][newY] = 1
+        if (newX, newY) in self.messages.keys():
+            current_message = self.messages[(newX, newY)]
 
-        visited_cells = 0
-        for row in range(self.cell_count):
-            for col in range(self.cell_count):
-                visited_cells += self.visited_map[row][col] == 1
+            self.window['-MESSAGE-'].update(
+                f'{current_message}')
 
-        if visited_cells == self.cell_count ** 2 - len(self.bombs) - len(self.walls) - 1:
+            if current_message not in MINEFOL_MESSAGES:
+                MINEFOL_MESSAGES.insert(1, current_message)
+        else:
+            self.window['-MESSAGE-'].update('')
+
+        if not self.visited_map[newX][newY]:
+            self.safe_map[newX][newY] = self.check_safe(newX, newY)
+            self.score += (-1 ** (not self.safe_map[newX][newY])) * SCORE_STEP
+            self.visited_cells += 1
+
+        if self.visited_cells == self.cell_count ** 2 - len(self.bombs) - len(self.walls) - 1:
             self.window['-MESSAGE-'].update(f'YOU WON!')
             self.is_running = False
+
+    def check_safe(self, x, y):
+        MINEFOL_GOALS[1] = f'safe({x}, {y}).'
+
+        with open(PROVER_INPUT, WRITE_MODE) as prover_file:
+            prover_file.write('\n'.join(MINEFOL_RULES))
+            prover_file.write('\n'.join(MINEFOL_MESSAGES))
+            prover_file.write('\n'.join(MINEFOL_GOALS))
+
+        os.system("gnome-terminal -e 'bash -c \"" +
+                  PROVER_COMMAND + ";bash\"'")
+
+        with open(PROVER_OUTPUT, READ_MODE) as prover_file:
+            demonstration = prover_file.read()
+
+        return THEOREM_PROVED in demonstration
 
 
 def main():
