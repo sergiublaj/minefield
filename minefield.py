@@ -10,9 +10,10 @@ import PySimpleGUI
 from tkinter import *
 from PIL import ImageTk, Image
 
-RESOURCES_FOLDER = './resources'
-PHOTOS_FILES = ('pickaxe.png', 'message.png', 'bomb.png')
+MAPS_FOLDER = './resources/maps'
+IMAGES_FOLDER = './resources/images'
 
+PHOTOS_FILES = ('pickaxe.png', 'message.png', 'bomb.png')
 MAP_TEST = 'map_test.txt'
 
 GRID_SIZE = 500
@@ -21,10 +22,9 @@ TEXT_SIZE = 16
 PySimpleGUI.theme('DarkGrey5')
 SCORE_STEP = 10
 
-MINEFOL_RULES = [
-    'formulas(minefol).', 'all x all y (safe(x,y) <-> -(mine(x,y))).', 'safe(1,1).', 'end_of_list.']
-MINEFOL_MESSAGES = ['formulas(game).', 'end_of_list.']
-MINEFOL_GOALS = ['formulas(goals).', '', 'end_of_list.']
+MINEFOL_ASSUMPTIONS = [
+    'formulas(assumptions).', 'all x all y (safe(x,y) <-> -(mine(x,y))).', 'safe(1,1).', 'end_of_list.', '\n']
+MINEFOL_GOALS = ['formulas(goals).', '', 'end_of_list.', '\n']
 
 PROVER_INPUT = 'prover9.in'
 PROVER_OUTPUT = 'prover9.out'
@@ -41,7 +41,7 @@ class Minefield:
         pass
 
     def initialize(self):
-        self.read_config(MAP_TEST)
+        self.read_config(os.path.join(MAPS_FOLDER, MAP_TEST))
 
         self.initialize_window()
 
@@ -91,7 +91,7 @@ class Minefield:
         self.pictures = []
 
         for resource in PHOTOS_FILES:
-            image = Image.open(os.path.join(RESOURCES_FOLDER, resource))
+            image = Image.open(os.path.join(IMAGES_FOLDER, resource))
             image = image.resize(
                 (self.cell_size, self.cell_size), Image.ANTIALIAS)
             photoImage = ImageTk.PhotoImage(image)
@@ -116,8 +116,6 @@ class Minefield:
         self.window = PySimpleGUI.Window('Minefield v1.2', layout, resizable=True, finalize=True,
                                          return_keyboard_events=True)
 
-        self.window.Resizable(0, 0)
-
         self.canvas = self.window['-CANVAS-']
 
     def initialize_matrix(self):
@@ -137,7 +135,7 @@ class Minefield:
 
         self.is_running = True
 
-        MINEFOL_MESSAGES.insert(1, self.messages[(1, 1)])
+        MINEFOL_ASSUMPTIONS.insert(3, self.messages[(1, 1)])
 
     def draw_grid(self):
         self.canvas.TKCanvas.create_rectangle(
@@ -227,6 +225,7 @@ class Minefield:
 
         event_type = self.get_event(event)
         if event_type == 'Restart':
+            self.window.close()
             self.initialize_window()
             self.initialize_game()
             return
@@ -279,14 +278,15 @@ class Minefield:
             self.window['-MESSAGE-'].update(
                 f'{current_message}')
 
-            if current_message not in MINEFOL_MESSAGES:
-                MINEFOL_MESSAGES.insert(1, current_message)
+            if current_message not in MINEFOL_ASSUMPTIONS:
+                MINEFOL_ASSUMPTIONS.insert(3, current_message)
         else:
             self.window['-MESSAGE-'].update('')
 
         if not self.visited_map[newX][newY]:
             self.safe_map[newX][newY] = self.check_safe(newX, newY)
-            self.score += (-1 ** (not self.safe_map[newX][newY])) * SCORE_STEP
+            self.score += ((-1) **
+                           (not self.safe_map[newX][newY])) * SCORE_STEP
             self.visited_cells += 1
 
         if self.visited_cells == self.cell_count ** 2 - len(self.bombs) - len(self.walls) - 1:
@@ -297,12 +297,10 @@ class Minefield:
         MINEFOL_GOALS[1] = f'safe({x}, {y}).'
 
         with open(PROVER_INPUT, WRITE_MODE) as prover_file:
-            prover_file.write('\n'.join(MINEFOL_RULES))
-            prover_file.write('\n'.join(MINEFOL_MESSAGES))
+            prover_file.write('\n'.join(MINEFOL_ASSUMPTIONS))
             prover_file.write('\n'.join(MINEFOL_GOALS))
 
-        os.system("gnome-terminal -e 'bash -c \"" +
-                  PROVER_COMMAND + ";bash\"'")
+        os.system(PROVER_COMMAND)
 
         with open(PROVER_OUTPUT, READ_MODE) as prover_file:
             demonstration = prover_file.read()
