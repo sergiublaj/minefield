@@ -1,0 +1,24 @@
+%%%%%%%%%
+%M.B.....
+%.M.B....
+%.......M
+%...MBB..
+%.M.MM..M
+%M.....M.
+%M.......
+%.B...M.M
+=========
+1 1 all x (-mine(1,x)).
+1 6 all y (-mine(y,3)).
+1 7 mine(6,4).
+8 3 exists x (mine(1,x) -> mine(8,x)).
+8 5 (-mine(4,5) | -mine(5, 4)).
+8 8 all x(-mine(x, x)).
+2 2 all x(-mine(x,7)).
+4 4 all x all y all z ((mine(y,x) & x!=z)<->-mine(y,z)).	
+6 5 mine(5,4).
+6 8 mine(2,8).
+2 5 all x(-mine(7,x)).
+7 6 (mine(4,2) | mine(5,1)).
+4 5 mine(3,1).
+4 5 mine(3,1).

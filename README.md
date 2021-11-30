@@ -1,7 +1,7 @@
 # minefield
 
 Minfield in Python3
-v1.2
+v1.3
 
 # GUI
 
@@ -19,6 +19,9 @@ taken from: https://github.com/KenoLeon/Medium-Mazes
 8. python minefield.py
 
 note: you must have prover9 installed on your system
+
+# movement
+move using your arrow keys: up, down, left, right
 
 # build your own map
 

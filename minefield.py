@@ -14,9 +14,9 @@ MAPS_FOLDER = './resources/maps'
 IMAGES_FOLDER = './resources/images'
 
 PHOTOS_FILES = ('pickaxe.png', 'message.png', 'bomb.png')
-MAP_TEST = 'map_test.txt'
+MAP_FILE = 'map_alpha.txt'
 
-GRID_SIZE = 500
+GRID_SIZE = 720
 APP_FONT = 'Helvetica'
 TEXT_SIZE = 16
 PySimpleGUI.theme('DarkGrey5')
@@ -41,7 +41,7 @@ class Minefield:
         pass
 
     def initialize(self):
-        self.read_config(os.path.join(MAPS_FOLDER, MAP_TEST))
+        self.read_config(os.path.join(MAPS_FOLDER, MAP_FILE))
 
         self.initialize_window()
 
@@ -113,7 +113,7 @@ class Minefield:
                    [PySimpleGUI.Text(f'{self.messages[(1, 1)]}', key='-MESSAGE-',
                                      font=' '.join([APP_FONT, str(TEXT_SIZE)]), size=(sizeX * 2, sizeY))]]]
 
-        self.window = PySimpleGUI.Window('Minefield v1.2', layout, resizable=True, finalize=True,
+        self.window = PySimpleGUI.Window('Minefield v1.3', layout, resizable=True, finalize=True,
                                          return_keyboard_events=True)
 
         self.canvas = self.window['-CANVAS-']
@@ -268,9 +268,22 @@ class Minefield:
         if oldX == newX and oldY == newY:
             return
 
+        if not self.visited_map[newX][newY]:
+            self.safe_map[newX][newY] = self.check_safe(newX, newY)
+            self.score += ((-1) **
+                           (not self.safe_map[newX][newY])) * SCORE_STEP
+            self.visited_cells += 1
+            return
+
         if (newX, newY) in self.bombs:
             self.window['-MESSAGE-'].update(f'YOU LOST!')
             self.is_running = False
+            return
+
+        if self.visited_cells == self.cell_count ** 2 - len(self.bombs) - len(self.walls) - 1:
+            self.window['-MESSAGE-'].update(f'YOU WON!')
+            self.is_running = False
+            return
 
         if (newX, newY) in self.messages.keys():
             current_message = self.messages[(newX, newY)]
@@ -282,16 +295,6 @@ class Minefield:
                 MINEFOL_ASSUMPTIONS.insert(3, current_message)
         else:
             self.window['-MESSAGE-'].update('')
-
-        if not self.visited_map[newX][newY]:
-            self.safe_map[newX][newY] = self.check_safe(newX, newY)
-            self.score += ((-1) **
-                           (not self.safe_map[newX][newY])) * SCORE_STEP
-            self.visited_cells += 1
-
-        if self.visited_cells == self.cell_count ** 2 - len(self.bombs) - len(self.walls) - 1:
-            self.window['-MESSAGE-'].update(f'YOU WON!')
-            self.is_running = False
 
     def check_safe(self, x, y):
         MINEFOL_GOALS[1] = f'safe({x}, {y}).'
